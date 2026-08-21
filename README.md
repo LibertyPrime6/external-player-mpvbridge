@@ -14,34 +14,6 @@
    - [GitHub 更新源](https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/external-player-mpvbridge.github.user.js)
      （后续从 GitHub `main` 分支自动更新）。
 
-### 安装来源与自动更新
-
-- **Greasy Fork 更新源（推荐）**：通过
-  [Greasy Fork 脚本页](https://greasyfork.org/zh-CN/scripts/592362-external-player-for-mpvbridge)
-  安装。Greasy Fork 上发布的副本使用 Greasy Fork 的 `@downloadURL` 与
-  `@updateURL`，Tampermonkey 会从 Greasy Fork 自动检查并安装后续版本。
-- **GitHub 更新源**：直接打开
-  [GitHub Raw 脚本](https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/external-player-mpvbridge.github.user.js)
-  安装。GitHub 仓库中的副本使用指向 `main` 分支的 `@downloadURL` 与
-  `@updateURL`，Tampermonkey 会从 GitHub 自动检查并安装后续版本。
-
-两个入口的脚本功能相同，区别仅在自动更新来源。请只安装其中一个；如需切换更新源，
-直接从另一个入口重新安装即可。
-
-仓库中保留两个便于维护的分发文件：
-
-- [`external-player-mpvbridge.github.user.js`](external-player-mpvbridge.github.user.js)：GitHub
-  更新源，文件头带有“GitHub 更新源”标记。
-- [`external-player-mpvbridge.greasyfork.user.js`](external-player-mpvbridge.greasyfork.user.js)：
-  Greasy Fork 更新源，文件头带有“Greasy Fork 更新源”标记，用于上传到 Greasy Fork。
-
-修改功能时应同步更新两个文件并保持相同的 `@version`。两个文件只应在分发标记、
-`@downloadURL` 和 `@updateURL` 上存在差异。
-
-旧文件 [`external-player-mpvbridge.user.js`](external-player-mpvbridge.user.js) 暂时作为
-兼容迁移副本保留，使已安装旧 GitHub 地址的用户可以自动切换到新的
-`external-player-mpvbridge.github.user.js`；新用户不应再使用旧文件名安装。
-
 ## 第一次使用（详细步骤）
 
 ### 1. 准备运行环境
