@@ -8,10 +8,39 @@
 
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/)。
 2. 安装并配置 [MPVBridge](https://github.com/LibertyPrime6/MPVBridge)。
-3. 点击[安装油猴脚本](https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/external-player-mpvbridge.user.js)。
+3. 选择一个更新源安装油猴脚本：
+   - [Greasy Fork 更新源](https://greasyfork.org/zh-CN/scripts/592362-external-player-for-mpvbridge)
+     （推荐，后续从 Greasy Fork 自动更新）。
+   - [GitHub 更新源](https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/external-player-mpvbridge.github.user.js)
+     （后续从 GitHub `main` 分支自动更新）。
 
-脚本的 `@downloadURL` 与 `@updateURL` 均指向本仓库的 `main` 分支，后续版本可由
-油猴扩展自动检查更新。
+### 安装来源与自动更新
+
+- **Greasy Fork 更新源（推荐）**：通过
+  [Greasy Fork 脚本页](https://greasyfork.org/zh-CN/scripts/592362-external-player-for-mpvbridge)
+  安装。Greasy Fork 上发布的副本使用 Greasy Fork 的 `@downloadURL` 与
+  `@updateURL`，Tampermonkey 会从 Greasy Fork 自动检查并安装后续版本。
+- **GitHub 更新源**：直接打开
+  [GitHub Raw 脚本](https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/external-player-mpvbridge.github.user.js)
+  安装。GitHub 仓库中的副本使用指向 `main` 分支的 `@downloadURL` 与
+  `@updateURL`，Tampermonkey 会从 GitHub 自动检查并安装后续版本。
+
+两个入口的脚本功能相同，区别仅在自动更新来源。请只安装其中一个；如需切换更新源，
+直接从另一个入口重新安装即可。
+
+仓库中保留两个便于维护的分发文件：
+
+- [`external-player-mpvbridge.github.user.js`](external-player-mpvbridge.github.user.js)：GitHub
+  更新源，文件头带有“GitHub 更新源”标记。
+- [`external-player-mpvbridge.greasyfork.user.js`](external-player-mpvbridge.greasyfork.user.js)：
+  Greasy Fork 更新源，文件头带有“Greasy Fork 更新源”标记，用于上传到 Greasy Fork。
+
+修改功能时应同步更新两个文件并保持相同的 `@version`。两个文件只应在分发标记、
+`@downloadURL` 和 `@updateURL` 上存在差异。
+
+旧文件 [`external-player-mpvbridge.user.js`](external-player-mpvbridge.user.js) 暂时作为
+兼容迁移副本保留，使已安装旧 GitHub 地址的用户可以自动切换到新的
+`external-player-mpvbridge.github.user.js`；新用户不应再使用旧文件名安装。
 
 ## 第一次使用（详细步骤）
 
@@ -95,7 +124,9 @@ MPVBridge.exe "https://example.com/video"
 
 ### 4. 安装油猴脚本
 
-1. 打开[脚本安装链接](https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/external-player-mpvbridge.user.js)。
+1. 选择 [Greasy Fork 更新源](https://greasyfork.org/zh-CN/scripts/592362-external-player-for-mpvbridge)
+   或 [GitHub 更新源](https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/external-player-mpvbridge.github.user.js)，
+   并按上方“安装来源与自动更新”的说明打开对应链接。
 2. Tampermonkey 出现安装页面后，确认脚本名称为 **External Player for MPVBridge**，
    然后点击安装。
 3. 保留脚本需要的 `GM_cookie`、`GM.xmlHttpRequest` 和站点连接权限；这些权限用于
@@ -103,8 +134,8 @@ MPVBridge.exe "https://example.com/video"
    会话通信。
 4. 回到已经打开的视频页面并刷新一次，确保新脚本已注入页面。
 
-安装后可在 Tampermonkey 管理面板中检查版本。脚本会通过本仓库的 `main` 分支
-自动检查更新，不需要重复手动导入。
+安装后可在 Tampermonkey 管理面板中检查版本。从 Greasy Fork 安装的副本会通过
+Greasy Fork 更新；从 GitHub Raw 安装的副本会通过 GitHub `main` 分支更新。
 
 ### 5. 完成第一次网页播放
 

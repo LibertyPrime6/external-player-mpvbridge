@@ -30,8 +30,8 @@
 // @updateURL               https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/external-player-mpvbridge.github.user.js
 // ==/UserScript==
 
-// Compatibility alias: migrates the legacy filename to the GitHub update source.
-// 兼容副本：将旧文件名迁移到 GitHub 更新源。
+// Distribution: GitHub update source.
+// 分发版本：GitHub 更新源。
 
 /*
  * MPVBridge edition maintained by LibertyPrime6.

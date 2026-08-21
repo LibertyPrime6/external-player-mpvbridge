@@ -26,12 +26,12 @@
 // @grant                   GM.xmlHttpRequest
 // @grant                   unsafeWindow
 // @run-at                  document-start
-// @downloadURL             https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/external-player-mpvbridge.github.user.js
-// @updateURL               https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/external-player-mpvbridge.github.user.js
+// @downloadURL             https://update.greasyfork.org/scripts/592362/External%20Player%20for%20MPVBridge.user.js
+// @updateURL               https://update.greasyfork.org/scripts/592362/External%20Player%20for%20MPVBridge.meta.js
 // ==/UserScript==
 
-// Compatibility alias: migrates the legacy filename to the GitHub update source.
-// 兼容副本：将旧文件名迁移到 GitHub 更新源。
+// Distribution: Greasy Fork update source.
+// 分发版本：Greasy Fork 更新源。
 
 /*
  * MPVBridge edition maintained by LibertyPrime6.
