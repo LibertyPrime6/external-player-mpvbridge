@@ -3,7 +3,7 @@
 // @name:zh-CN              外部播放器 · MPVBridge
 // @namespace               https://github.com/LibertyPrime6/external-player-mpvbridge
 // @copyright               2024, LuckyPuppy514; 2026, LibertyPrime6
-// @version                 1.5.4
+// @version                 1.5.6
 // @license                 MIT
 // @description             Play web video through MPVBridge and mpv
 // @description:zh-CN       通过 MPVBridge 和 mpv 播放网页视频
@@ -56,8 +56,9 @@ const MPV_BRIDGE_PLAY_EVENT = 'launchMpvBridge(media, config, player.name);';
 
 const defaultConfig = {
     global: {
-        version: '1.5.4',
+        version: '1.5.6',
         language: (navigator.language || navigator.userLanguage) === 'zh-CN' ? 'zh' : 'en',
+        enableLogging: false,
         buttonXCoord: '0',
         buttonYCoord: '0',
         buttonScale: '1.00',
@@ -211,6 +212,9 @@ const translations = {
 const REFRESH_INTERVAL = 500;
 const MAX_TRY_COUNT = 5;
 const SITE_REQUEST_TIMEOUT = 8000;
+const DIAGNOSTIC_LOG_KEY = 'external-player-mpvbridge-diagnostic-log-v1';
+const DIAGNOSTIC_LOG_MAX_ENTRIES = 500;
+const DIAGNOSTIC_LOG_MAX_CHARACTERS = 256 * 1024;
 
 var currentTryCount;
 var currentConfig;
@@ -221,6 +225,113 @@ var currentPlayer;
 var translation;
 var iframe;
 var bilibiliWbiKeyCache;
+var topEventHandlersInstalled = false;
+
+function isDiagnosticLoggingEnabled() {
+    return currentConfig?.global?.enableLogging === true;
+}
+
+function redactDiagnosticText(value) {
+    return String(value ?? '')
+        .replace(/(mpvbridge:\/\/[^?\s]+\?)[A-Za-z0-9_=-]+/gi, '$1[payload-redacted]')
+        .replace(/(--mpvbridge-(?:session|feedback-port)=)[^\s"']+/gi, '$1[redacted]')
+        .replace(/\b(Cookie|Authorization|Proxy-Authorization)(\s*[:=]\s*)[^\r\n]*/gi,
+            '$1$2[redacted]')
+        .replace(/\b(SESSDATA|bili_jct|DedeUserID|buvid3|sid|LOGIN_INFO)=([^;\s]+)/gi,
+            '$1=[redacted]')
+        .replace(/https?:\/\/[^\s"'<>]+/gi, url => {
+            const suffix = url.search(/[?#]/);
+            return suffix >= 0 ? `${url.slice(0, suffix)}?[query-redacted]` : url;
+        });
+}
+
+function serializeDiagnosticDetail(detail) {
+    if (detail === undefined || detail === null || detail === '') {
+        return '';
+    }
+    if (detail instanceof Error) {
+        return redactDiagnosticText(detail.stack || detail.message || detail.name);
+    }
+    if (typeof detail === 'string') {
+        return redactDiagnosticText(detail);
+    }
+    const seen = new WeakSet();
+    try {
+        return redactDiagnosticText(JSON.stringify(detail, (key, value) => {
+            if (/cookie|authorization|payload|session|token/i.test(key)) {
+                return '[redacted]';
+            }
+            if (value instanceof Error) {
+                return value.stack || value.message || value.name;
+            }
+            if (value && typeof value === 'object') {
+                if (seen.has(value)) return '[circular]';
+                seen.add(value);
+            }
+            return value;
+        }));
+    } catch (error) {
+        return redactDiagnosticText(String(detail));
+    }
+}
+
+function readDiagnosticLogEntries() {
+    const stored = GM_getValue(DIAGNOSTIC_LOG_KEY, []);
+    return Array.isArray(stored) ? stored.filter(entry => typeof entry === 'string') : [];
+}
+
+function writeDiagnosticLog(level, event, detail, force = false) {
+    if (!force && !isDiagnosticLoggingEnabled()) {
+        return;
+    }
+    try {
+        const suffix = serializeDiagnosticDetail(detail);
+        const entry = `${new Date().toISOString()} [${String(level || 'INFO').toUpperCase()}] ` +
+            `${redactDiagnosticText(event)}${suffix ? ` | ${suffix}` : ''}`;
+        const entries = readDiagnosticLogEntries();
+        entries.push(entry);
+        let characters = entries.reduce((total, item) => total + item.length + 1, 0);
+        while (entries.length > DIAGNOSTIC_LOG_MAX_ENTRIES ||
+            characters > DIAGNOSTIC_LOG_MAX_CHARACTERS) {
+            characters -= (entries.shift()?.length || 0) + 1;
+        }
+        GM_setValue(DIAGNOSTIC_LOG_KEY, entries);
+    } catch (error) {
+        console.warn('Unable to write External Player diagnostic log:', error);
+    }
+}
+
+function exportDiagnosticLog() {
+    const entries = readDiagnosticLogEntries();
+    const version = GM_info?.script?.version || currentConfig?.global?.version || 'unknown';
+    const page = `${location.origin}${location.pathname}`;
+    const header = [
+        'External Player for MPVBridge diagnostic log',
+        `ExportedAt=${new Date().toISOString()}`,
+        `ScriptVersion=${version}`,
+        `LoggingEnabled=${isDiagnosticLoggingEnabled()}`,
+        `Page=${redactDiagnosticText(page)}`,
+        `UserAgent=${redactDiagnosticText(navigator.userAgent)}`,
+        `Entries=${entries.length}`,
+        'Privacy=Cookies, authorization data, protocol payloads, session tokens, and URL queries are redacted.',
+        ''
+    ];
+    const blob = new Blob([[...header, ...entries, ''].join('\r\n')], {
+        type: 'text/plain;charset=utf-8'
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    anchor.href = url;
+    anchor.download = `external-player-mpvbridge-${stamp}.log`;
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    writeDiagnosticLog('INFO', 'Diagnostic log exported', { entries: entries.length });
+    return entries.length;
+}
 
 function normalizePlaybackTime(value) {
     const seconds = Number(value);
@@ -415,12 +526,18 @@ class BaseParser {
         }
     }
     async play(player) {
+        const startedAt = Date.now();
         try {
             // 别名，方便播放事件使用
             currentPlayer = player;
             let media = currentMedia;
             let parser = currentParser;
             let config = currentConfig.global;
+            writeDiagnosticLog('INFO', 'Playback request started', {
+                player: player?.name,
+                parser: parser?.diagnosticName || parser?.constructor?.name || 'unknown',
+                page: `${location.origin}${location.pathname}`
+            });
             // Bilibili 普通视频与直播已在 execute() 内完成“网页会话 → 自动
             // Cookie → 已保存 Cookie → 匿名”的完整回退。外层再重跑五次会把
             // 一次网络故障放大成最多二十轮认证/API 请求，也是此前偶发长时间
@@ -432,6 +549,10 @@ class BaseParser {
             let latestError = undefined;
             do {
                 currentTryCount++;
+                writeDiagnosticLog('DEBUG', 'Parser attempt started', {
+                    attempt: currentTryCount,
+                    maximumAttempts
+                });
                 try {
                     // 低端影视
                     if (currentUrl.startsWith("https://ddys")) {
@@ -441,25 +562,41 @@ class BaseParser {
 
                     await parser.execute();
                     if (await parser.check()) {
+                        writeDiagnosticLog('INFO', 'Parser attempt succeeded', {
+                            attempt: currentTryCount
+                        });
                         latestError = undefined;
                         break;
                     }
                     await sleep(REFRESH_INTERVAL * 2);
                 } catch (error) {
                     latestError = error;
+                    writeDiagnosticLog('ERROR', 'Parser attempt failed', {
+                        attempt: currentTryCount,
+                        error
+                    });
                     console.error(`第${currentTryCount}次尝试解析失败：`, error);
                 }
             }
             while (currentTryCount < maximumAttempts);
             if (latestError) {
+                writeDiagnosticLog('ERROR', 'Playback request stopped after parser failure', latestError);
                 showToast(translation.loadFail + ': ' + latestError.message);
                 return;
             }
             if (!await parser.check()) {
+                writeDiagnosticLog('ERROR', 'Parser completed without playable media');
                 showToast(translation.loadFail);
                 return;
             }
             media = currentMedia;
+            writeDiagnosticLog('INFO', 'Playable media prepared', {
+                hasVideo: Boolean(media?.video),
+                videoTracks: Array.isArray(media?.videoTracks) ? media.videoTracks.length : 0,
+                audioTracks: Array.isArray(media?.audioTracks) ? media.audioTracks.length : 0,
+                subtitles: Array.isArray(media?.subtitles) ? media.subtitles.length : 0,
+                playlistEntries: Array.isArray(media?.playlistEntries) ? media.playlistEntries.length : 0
+            });
 
             if (!player.presetEvent.syncTime) {
                 media.time = undefined;
@@ -467,6 +604,9 @@ class BaseParser {
 
             if (player.playEvent) {
                 try {
+                    writeDiagnosticLog('DEBUG', 'Executing player launch event', {
+                        player: player.name
+                    });
                     eval(policy.createScript(player.playEvent));
                 } catch (error) {
                     if (error.toString().includes('unsafe-eval')) {
@@ -489,8 +629,12 @@ class BaseParser {
                 parser.pause();
             }
         } catch (error) {
+            writeDiagnosticLog('ERROR', 'Playback request failed unexpectedly', error);
             showToast(translation.loadFail + ': ' + error.message);
         } finally {
+            writeDiagnosticLog('INFO', 'Playback request handler finished', {
+                elapsedMs: Date.now() - startedAt
+            });
             hideLoading();
         }
     }
@@ -1002,6 +1146,11 @@ function getRuntimeAuthenticationSourceLabel(source) {
 function showBilibiliAuthenticationResult(source, succeeded, willFallback = false) {
     const label = getRuntimeAuthenticationSourceLabel(source);
     const zh = currentConfig?.global?.language === 'zh';
+    writeDiagnosticLog(succeeded ? 'INFO' : 'WARN', 'Bilibili authentication result', {
+        source,
+        succeeded,
+        willFallback
+    });
     if (succeeded) {
         showToast(zh ? `Bilibili｜认证：${label}｜解析成功` :
             `Bilibili | Auth: ${label} | Parsing succeeded`);
@@ -4252,6 +4401,8 @@ async function retryMpvBridgeWithNextAuthentication(session, retryContext, error
 
 async function monitorMpvBridgeSession(session, retryContext) {
     let received = false;
+    let connectionWarningLogged = false;
+    let lastPhase = '';
     let cookieUploaded = !session.cookieJar;
     let announcedPreflight = '';
     let announcedIpc = '';
@@ -4262,7 +4413,23 @@ async function monitorMpvBridgeSession(session, retryContext) {
     while (Date.now() < deadline) {
         try {
             const snapshot = await requestMpvBridgeStatus(session);
+            if (!received) {
+                writeDiagnosticLog('INFO', 'MPVBridge feedback connected', {
+                    site: session.site,
+                    authSource: session.authSource
+                });
+            }
             received = true;
+            const phase = String(snapshot?.phase || '');
+            if (phase && phase !== lastPhase) {
+                lastPhase = phase;
+                writeDiagnosticLog(phase === 'error' ? 'ERROR' : 'INFO',
+                    'MPVBridge phase changed', {
+                        phase,
+                        error: snapshot?.error,
+                        exitCode: snapshot?.exitCode
+                    });
+            }
             if (!cookieUploaded) {
                 await uploadMpvBridgeCookieJar(session);
                 cookieUploaded = true;
@@ -4337,6 +4504,9 @@ async function monitorMpvBridgeSession(session, retryContext) {
         } catch (error) {
             if (received) {
                 console.warn('MPVBridge feedback connection was interrupted:', error);
+            } else if (!connectionWarningLogged) {
+                connectionWarningLogged = true;
+                writeDiagnosticLog('WARN', 'MPVBridge feedback not available yet', error);
             }
         }
         await sleep(received ? 1000 : 250);
@@ -4346,7 +4516,16 @@ async function monitorMpvBridgeSession(session, retryContext) {
 function launchMpvBridge(media, config, playerName, attemptedAuthSources) {
     const session = createMpvBridgeSession(media);
     const args = buildMpvLaunchArguments(media, config, session);
+    const payload = encodeMpvBridgePayload(args.join(' '));
     console.log(redactMpvArguments(args));
+    writeDiagnosticLog('INFO', 'MPVBridge launch prepared', {
+        player: playerName,
+        argumentCount: args.length,
+        payloadCharacters: payload.length,
+        site: session.site,
+        authSource: session.authSource,
+        usesYtdlp: session.usesYtdlp
+    });
     const retryContext = {
         media,
         config,
@@ -4355,8 +4534,22 @@ function launchMpvBridge(media, config, playerName, attemptedAuthSources) {
             getAuthenticationSourcesThrough(session.site, session.authSource)
     };
     monitorMpvBridgeSession(session, retryContext).catch(error =>
-        console.warn('MPVBridge feedback monitor stopped:', error));
-    window.open(`mpvbridge://${playerName}?${encodeMpvBridgePayload(args.join(' '))}`, '_self');
+        (writeDiagnosticLog('ERROR', 'MPVBridge feedback monitor stopped', error),
+            console.warn('MPVBridge feedback monitor stopped:', error)));
+    const protocolUrl = `mpvbridge://${playerName}?${payload}`;
+    writeDiagnosticLog('INFO', 'Invoking mpvbridge protocol', {
+        player: playerName,
+        protocolUrlCharacters: protocolUrl.length
+    });
+    try {
+        const opened = window.open(protocolUrl, '_self');
+        writeDiagnosticLog('INFO', 'mpvbridge protocol invocation returned', {
+            windowReturned: opened !== null
+        });
+    } catch (error) {
+        writeDiagnosticLog('ERROR', 'mpvbridge protocol invocation threw', error);
+        throw error;
+    }
 }
 
 function buildMpvNativePlaylistArguments(media) {
@@ -4658,7 +4851,9 @@ function matchParser(parser, url) {
             }
             if (new RegExp(regex).test(url)) {
                 console.log(`match parser regex: ${new RegExp(regex)}\n${url}`);
-                return new PARSER[key.replace(/[A-Z]/g, letter => `_${letter}`).toUpperCase()]();
+                const matched = new PARSER[key.replace(/[A-Z]/g, letter => `_${letter}`).toUpperCase()]();
+                matched.diagnosticName = key;
+                return matched;
             }
         }
     }
@@ -4894,6 +5089,7 @@ function showLoading(timeout) {
     loadingDiv.style.display = 'block';
     loadingId = setTimeout(() => {
         if (loadingDiv.style.display === 'block') {
+            writeDiagnosticLog('WARN', 'Loading indicator timed out', { timeoutMs: timeout });
             hideLoading();
             showToast(translation.loadTimeout);
         }
@@ -5733,6 +5929,17 @@ async function appendSettingIframe() {
                         <label data-translate="networkProxy">网络代理</label>
                         <input type="text" id="networkProxy" placeholder="http://127.0.0.1:7890"></input>
                     </div>
+                    <div class="input-group">
+                        <label data-translate="diagnosticLogging">诊断日志</label>
+                        <label class="switch">
+                            <input type="checkbox" id="enableLogging"><span class="switch-slider"></span>
+                        </label>
+                        <div class="parser-hint" data-translate="diagnosticLoggingHint">保存后生效；日志会限制大小并自动过滤 Cookie、认证信息、协议载荷和 URL 查询参数。</div>
+                        <div class="auth-actions">
+                            <button type="button" id="export-log-button" data-translate="exportLog">导出日志文件</button>
+                        </div>
+                        <div id="log-message" class="auth-file-meta"></div>
+                    </div>
                     <label data-translate="parser">解析器</label>
                     <div class="input-group parser" id="bilibili">
                         <label><a href="https://github.com/SocialSisterYi/bilibili-API-collect"
@@ -6100,6 +6307,11 @@ async function appendSettingIframe() {
                 buttonScale: 'Button Scale',
                 buttonVisibilityDuration: 'Button Visibility Duration (ms, -1: Keep Visible)',
                 networkProxy: 'Network Proxy',
+                diagnosticLogging: 'Diagnostic Logging',
+                diagnosticLoggingHint: 'Takes effect after saving. Log size is bounded, and cookies, authentication data, protocol payloads, session tokens, and URL queries are redacted.',
+                exportLog: 'Export Log File',
+                logExported: 'Log file exported',
+                logExportFailed: 'Unable to export log file',
                 reset: 'Reset',
                 save: 'Save',
                 delete: 'Delete',
@@ -6204,6 +6416,11 @@ async function appendSettingIframe() {
                 buttonScale: '按钮比例',
                 buttonVisibilityDuration: '按钮可见时长（毫秒，-1：一直可见）',
                 networkProxy: '网络代理',
+                diagnosticLogging: '诊断日志',
+                diagnosticLoggingHint: '保存后生效；日志会限制大小并自动过滤 Cookie、认证信息、协议载荷、会话令牌和 URL 查询参数。',
+                exportLog: '导出日志文件',
+                logExported: '日志文件已导出',
+                logExportFailed: '日志文件导出失败',
                 reset: '重置',
                 save: '保存',
                 delete: '删除',
@@ -6667,7 +6884,9 @@ async function appendSettingIframe() {
                 if (key === 'parser') {
                     continue;
                 }
-                config.global[key] = document.getElementById(key)?.value || defaultConfig.global[key];
+                const field = document.getElementById(key);
+                config.global[key] = field?.matches('input[type="checkbox"]') ? field.checked :
+                    field?.value ?? defaultConfig.global[key];
             }
 
             document.querySelectorAll('.tab').forEach(tab => {
@@ -6709,7 +6928,12 @@ async function appendSettingIframe() {
                 if (key === 'parser' || !document.getElementById(key)) {
                     continue;
                 }
-                document.getElementById(key).value = config.global[key];
+                const field = document.getElementById(key);
+                if (field.matches('input[type="checkbox"]')) {
+                    field.checked = config.global[key] === true;
+                } else {
+                    field.value = config.global[key];
+                }
             }
 
             document.getElementById('language').value = config.global.language;
@@ -6823,6 +7047,15 @@ async function appendSettingIframe() {
                     showAuthMessage(data.message || (data.ok ?
                         (currentLanguage === 'zh' ? '操作成功' : 'Operation completed') :
                         (currentLanguage === 'zh' ? '操作失败' : 'Operation failed')), !data.ok);
+                    return;
+                }
+                if (data.method === 'logExportResult') {
+                    const message = document.getElementById('log-message');
+                    document.getElementById('export-log-button').disabled = false;
+                    message.textContent = data.ok ?
+                        translations[currentLanguage].logExported + ' (' + (data.entries || 0) + ')' :
+                        translations[currentLanguage].logExportFailed + ': ' + (data.message || '');
+                    message.style.color = data.ok ? '#0b6b2a' : '#9b2c2c';
                 }
             });
 
@@ -6834,6 +7067,10 @@ async function appendSettingIframe() {
             document.getElementById('save-button').onclick = () => saveConfig();
             document.getElementById('reset-button').onclick = () => resetConfig();
             document.getElementById('reset-button-coord-button').onclick = () => resetButtonCoord();
+            document.getElementById('export-log-button').onclick = event => {
+                event.currentTarget.disabled = true;
+                parent.postMessage({ name: projectName, method: 'exportLog' }, '*');
+            };
             initializeAuthControls();
             document.querySelectorAll('.priority-sorter').forEach(initializePrioritySorter);
 
@@ -6879,8 +7116,18 @@ async function appendSettingIframe() {
 
 function saveConfig(config) {
     // 保存配置
+    const wasLoggingEnabled = isDiagnosticLoggingEnabled();
     currentConfig = config;
     GM_setValue('config', currentConfig);
+    if (isDiagnosticLoggingEnabled()) {
+        writeDiagnosticLog('INFO', wasLoggingEnabled ? 'Configuration saved' :
+            'Diagnostic logging enabled', {
+            version: currentConfig.global.version,
+            language: currentConfig.global.language
+        });
+    } else if (wasLoggingEnabled) {
+        writeDiagnosticLog('INFO', 'Diagnostic logging disabled', undefined, true);
+    }
     showToast(translation.saveSuccessfully);
 
     // 移除旧元素
@@ -6948,6 +7195,13 @@ function initTop() {
         showButtonDiv();
     }
 
+    // initTop() 会在保存设置和 SPA 地址变化后再次运行。全局监听器只安装一次，
+    // 否则一次设置页消息会被所有历史监听器重复处理（例如导出多份日志）。
+    if (topEventHandlersInstalled) {
+        return;
+    }
+    topEventHandlersInstalled = true;
+
     // 监听子页面事件
     window.addEventListener('message', function (event) {
         const data = event.data;
@@ -6994,6 +7248,26 @@ function initTop() {
                 iframe.postMessage({
                     name: PROJECT_NAME,
                     method: 'reload'
+                }, '*');
+            }
+            return;
+        }
+        if (data.method === 'exportLog') {
+            try {
+                const entries = exportDiagnosticLog();
+                event.source?.postMessage({
+                    name: PROJECT_NAME,
+                    method: 'logExportResult',
+                    ok: true,
+                    entries
+                }, '*');
+            } catch (error) {
+                writeDiagnosticLog('ERROR', 'Diagnostic log export failed', error);
+                event.source?.postMessage({
+                    name: PROJECT_NAME,
+                    method: 'logExportResult',
+                    ok: false,
+                    message: redactDiagnosticText(error?.message || error)
                 }, '*');
             }
             return;
@@ -7090,6 +7364,11 @@ async function init(url) {
     currentParser = matchParser(dedicatedParsers, url) ||
         matchParser(currentConfig.global.parser, url) ||
         matchParser(defaultConfig.global.parser, url);
+    writeDiagnosticLog('INFO', 'Script initialized', {
+        parser: currentParser?.diagnosticName || 'none',
+        page: `${location.origin}${location.pathname}`,
+        topFrame: self === top
+    });
     if (self === top) {
         initTop();
     } else {
