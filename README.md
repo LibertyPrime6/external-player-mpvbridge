@@ -83,8 +83,19 @@
 3. 优先使用 **网页登录**或**自动 Cookie**。Bilibili 当前视频与直播会依次尝试
    网页登录状态、自动 Cookie、已保存 Cookie 和匿名；Bilibili 播放列表与
    YouTube 会从自动 Cookie 开始尝试。
-4. 只有自动方式不可用时，再导入 Netscape 格式的 `cookies.txt`。脚本会先验证
-   站点登录状态和 yt-dlp 可用性，两项都成功后才保存。
+4. 只有自动方式不可用时，再导入 Netscape 格式的 `cookies.txt`。推荐使用开源扩展
+   [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
+   获取：
+   1. 在 Chrome、Edge 等 Chromium 浏览器中安装该扩展。
+   2. 使用同一浏览器登录 Bilibili 或 YouTube，并打开需要认证的对应站点页面。
+   3. 点击浏览器工具栏中的扩展图标，将导出格式选择为 **Netscape**，然后导出并保存
+      为 `cookies.txt`。只需要对应站点的 Cookie 时，优先按当前站点或域名导出。
+   4. 回到脚本的 **Cookie 认证**设置，选择刚导出的文件并执行验证。脚本会检查站点
+      登录状态和 yt-dlp 可用性，两项都成功后才保存。
+
+   扩展的源代码和版本信息可在
+   [kairi003/Get-cookies.txt-LOCALLY](https://github.com/kairi003/Get-cookies.txt-LOCALLY)
+   查看。请核对扩展名称与开发者，避免安装名称相似的未知扩展。
 5. 导入的 Cookie 保存在 Tampermonkey 的脚本存储中，可在同一页面删除。Cookie
    文件等同于登录凭据，只应在受信任的 Bilibili 或 YouTube 页面中导入，不要上传、
    分享或提交到 GitHub。
