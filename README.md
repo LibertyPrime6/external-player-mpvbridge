@@ -4,6 +4,7 @@
 用于通过 `mpvbridge://` 协议把网页视频交给
 [MPVBridge](https://github.com/LibertyPrime6/MPVBridge) 和 mpv 播放。
 有问题可以把log打开发到issue里，我会定期查看。
+MPV播放器推荐到[MPV整合包](https://github.com/yosh-wang/MPV-Resource-Index)下载。
 
 ## 安装
 
