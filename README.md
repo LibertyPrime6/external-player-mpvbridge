@@ -45,7 +45,55 @@
 如果默认 Profile 有效，外部调用会在倒计时结束后自动进入该 Profile。倒计时期间
 点击、滚动或按键会取消自动进入，仍可手动选择其他 Profile。
 
-### 3. 安装油猴脚本
+### 3. MPVBridge 单独使用与参数透传
+
+MPVBridge 不依赖本油猴脚本也能作为 mpv 的 Profile 选择器使用。外部程序传入
+本地媒体路径、媒体 URL 或 mpv 参数后，MPVBridge 会先让你选择 Profile，再把原始
+媒体参数交给该 Profile 对应的 `mpv.exe`。
+
+#### 把媒体文件拖到 MPVBridge 快捷方式
+
+1. 右键 `MPVBridge.exe`，选择 **发送到 > 桌面快捷方式**；也可以手动创建快捷方式。
+2. 把一个或多个本地视频、音频或播放列表文件拖到该快捷方式上。
+3. 在弹出的 Profile 选择窗口中选择播放器配置，MPVBridge 随即使用该配置打开文件。
+
+这个桌面快捷方式可以作为通用的媒体入口。直接双击快捷方式且没有给它媒体参数时，
+打开的是 Profile 管理窗口，不会启动空白 mpv。
+
+如果想为某个固定媒体制作单独的快捷方式，可以复制一份 MPVBridge 快捷方式，在
+**属性 > 目标**中将媒体路径追加到 `MPVBridge.exe` 后，例如：
+
+```text
+"D:\Apps\MPVBridge\MPVBridge.exe" "D:\Video\movie.mkv"
+```
+
+以后双击这个媒体快捷方式，就会先经过 MPVBridge 选择 Profile，再打开对应文件。
+移动 MPVBridge 或媒体文件后，需要同步修改快捷方式中的路径。
+
+#### 将 MPVBridge 关联为媒体文件的打开方式
+
+1. 双击 `MPVBridge.exe` 进入 Profile 管理，在 **系统集成 > 媒体文件关联**中选择
+   需要交给 MPVBridge 的视频、音频或播放列表扩展名并保存。
+2. 按照随后打开的 Windows **默认应用**页面完成最终确认。Windows 10/11 不允许
+   普通桌面程序静默替换受保护的默认应用，因此这一步需要手动选择 MPVBridge。
+3. 以后双击已关联的媒体文件，就会打开 Profile 选择窗口并透传给选中的 mpv。
+
+#### 从命令行透传文件、URL 和 mpv 参数
+
+```text
+MPVBridge.exe "D:\Video\ep01.mkv" --fs
+MPVBridge.exe "https://example.com/video"
+```
+
+除 `--bridge-profile=<ProfileID>` 等 Bridge 自有参数外，其余文件路径、URL 和 mpv
+选项会保持原始命令行形式传给目标 `mpv.exe`。使用 `--bridge-profile` 可以跳过
+选择窗口，直接锁定指定 Profile。
+
+这里保留的是完成首次使用所需的简明说明。Profile 配置、文件关联、协议、日志和
+完整命令行规则以 [MPVBridge 仓库 README](https://github.com/LibertyPrime6/MPVBridge#readme)
+为准，避免两份完整文档在后续版本中失去同步。
+
+### 4. 安装油猴脚本
 
 1. 打开[脚本安装链接](https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/external-player-mpvbridge.user.js)。
 2. Tampermonkey 出现安装页面后，确认脚本名称为 **External Player for MPVBridge**，
@@ -58,7 +106,7 @@
 安装后可在 Tampermonkey 管理面板中检查版本。脚本会通过本仓库的 `main` 分支
 自动检查更新，不需要重复手动导入。
 
-### 4. 完成第一次网页播放
+### 5. 完成第一次网页播放
 
 1. 打开一个受支持的视频页面，例如 Bilibili 或 YouTube 的单个视频页面。
 2. 等待网页自身播放器和视频信息加载完成。
@@ -74,7 +122,7 @@
 第一次测试建议先选择无需登录的公开视频。这样可以把“播放器路径或协议问题”和
 “Cookie、会员权限或地区限制问题”分开排查。
 
-### 5. Cookie 认证（按需配置）
+### 6. Cookie 认证（按需配置）
 
 公开媒体通常不需要额外配置。对于登录可见、会员、年龄限制或需要账号状态的内容：
 
@@ -103,7 +151,7 @@
 播放时，yt-dlp 所需的 Cookie 会通过带随机会话令牌的 `127.0.0.1` 请求临时交给
 MPVBridge。MPVBridge 使用临时 Cookie 文件启动 mpv/yt-dlp，并在正常结束后删除。
 
-### 6. 可选设置
+### 7. 可选设置
 
 - **网络代理**：按 `Ctrl + Alt + E` 打开设置，在全局设置中填写代理，例如
   `http://127.0.0.1:7890`。留空表示不使用代理。
