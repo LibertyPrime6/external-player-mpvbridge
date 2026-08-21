@@ -3,6 +3,7 @@
 由 [LibertyPrime6](https://github.com/LibertyPrime6) 维护的 External Player 修改版，
 用于通过 `mpvbridge://` 协议把网页视频交给
 [MPVBridge](https://github.com/LibertyPrime6/MPVBridge) 和 mpv 播放。
+有问题可以把log打开发到issue里，我会定期查看。
 
 ## 安装
 
