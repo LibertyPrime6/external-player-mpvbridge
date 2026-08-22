@@ -3,7 +3,7 @@
 // @name:zh-CN              外部播放器 · MPVBridge
 // @namespace               https://github.com/LibertyPrime6/external-player-mpvbridge
 // @copyright               2024, LuckyPuppy514; 2026, LibertyPrime6
-// @version                 1.5.6
+// @version                 1.5.7
 // @license                 MIT
 // @description             Play web video through MPVBridge and mpv
 // @description:zh-CN       通过 MPVBridge 和 mpv 播放网页视频
@@ -56,7 +56,7 @@ const MPV_BRIDGE_PLAY_EVENT = 'launchMpvBridge(media, config, player.name);';
 
 const defaultConfig = {
     global: {
-        version: '1.5.6',
+        version: '1.5.7',
         language: (navigator.language || navigator.userLanguage) === 'zh-CN' ? 'zh' : 'en',
         enableLogging: false,
         buttonXCoord: '0',
@@ -4169,6 +4169,7 @@ function redactMpvArguments(args) {
 const MPV_BRIDGE_STATUS_KEY = 'external-player-mpvbridge-status-v1';
 const MPV_BRIDGE_PORT_BASE = 42000;
 const MPV_BRIDGE_PORT_COUNT = 1000;
+const MPV_BRIDGE_BILIBILI_DANMAKU_OPTION = 'mpvbridge-bilibili-danmaku=yes';
 
 function createMpvBridgeSession(media) {
     const bytes = new Uint8Array(16);
@@ -4587,6 +4588,8 @@ function buildMpvNativePlaylistArguments(media) {
 function buildMpvLaunchArguments(media, config, bridgeSession) {
     const nativePlaylistArguments = buildMpvNativePlaylistArguments(media);
     const hasNativePlaylist = nativePlaylistArguments.length > 0;
+    const requestsBilibiliDanmaku = Boolean(media?.bilibili?.cid) ||
+        (Array.isArray(media?.playlistEntries) && media.playlistEntries.some(entry => entry?.cid));
     const playlistFiles = [...new Set(Array.isArray(media.playlist) ? media.playlist : [])].filter(Boolean);
     const namedTrackEdl = buildMpvNamedTrackEdl(media.videoTracks, media.audioTracks);
     const primaryVideo = namedTrackEdl || media.video || playlistFiles[0];
@@ -4649,6 +4652,8 @@ function buildMpvLaunchArguments(media, config, bridgeSession) {
             `--script-opts-append=${quoteMpvArgument('ytdl_hook-all_formats=' + (media.ytdlp.allFormats ? 'yes' : 'no'))}` : '',
         typeof media.ytdlp.forceAllFormats === 'boolean' ?
             `--script-opts-append=${quoteMpvArgument('ytdl_hook-force_all_formats=' + (media.ytdlp.forceAllFormats ? 'yes' : 'no'))}` : '',
+        requestsBilibiliDanmaku ?
+            `--script-opts-append=${quoteMpvArgument(MPV_BRIDGE_BILIBILI_DANMAKU_OPTION)}` : '',
         media.ytdlp.preferFirstVideo ? '--vid=1' : '',
         media.ytdlp.preferFirstAudio ? '--aid=1' : '',
         media.ytdlp.subtitleLanguages ? `--slang=${quoteMpvArgument(media.ytdlp.subtitleLanguages)}` : '',
