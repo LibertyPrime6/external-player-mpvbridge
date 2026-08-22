@@ -25,13 +25,15 @@ MPV播放器推荐到[MPV整合包](https://github.com/yosh-wang/MPV-Resource-In
 - Windows 10/11 x64。
 - Chrome、Edge 或 Firefox，以及已启用的 Tampermonkey。
 - 一套可以正常播放网络视频的 mpv。MPVBridge 只负责选择和启动 Profile，
-  不包含 `mpv.exe`、FFmpeg 或 yt-dlp。
-- [MPVBridge](https://github.com/LibertyPrime6/MPVBridge)。优先从
+  不包含 `mpv.exe`；`mpv.exe` 仍需用户自行准备并配置为 Profile。
+- MPVBridge v1.4.0 或更高版本。它可以检测系统中的 yt-dlp、FFmpeg 和 Node.js，
+  并在缺失时把便携环境一键安装到自身同目录的 `Tools` 文件夹。优先从
   [Releases](https://github.com/LibertyPrime6/MPVBridge/releases) 下载 Windows x64
-  便携包；如果暂时没有成品，也可以按照其 README 使用 Visual Studio 2026 构建。
+  版本；如果暂时没有成品，也可以按照其 README 使用 Visual Studio 2026 构建。
 
-如果需要播放 YouTube，建议让 mpv 使用较新的 yt-dlp，并在系统中安装 Node.js。
-本脚本会为 yt-dlp 指定 Node.js JavaScript 运行时，但仍需要本机能够找到 `node`。
+播放 YouTube 需要较新的 yt-dlp 和 Node.js JavaScript runtime。脚本和 MPVBridge
+都会显式传入 `--js-runtimes=node`；Node.js 可以来自系统 `PATH`，也可以由
+MPVBridge 安装到相对的 `Tools\node` 目录，不需要手动修改系统环境变量。
 
 ### 2. 第一次配置 MPVBridge
 
@@ -40,9 +42,16 @@ MPV播放器推荐到[MPV整合包](https://github.com/yosh-wang/MPV-Resource-In
 2. 双击 `MPVBridge.exe`，进入 **Profile 管理**窗口。
 3. 新建一个 Profile，填写容易识别的名称，并选择实际使用的 `mpv.exe`。
 4. 保存 Profile；如只有一套 mpv，建议将它设为默认 Profile。
-5. 在 **系统集成**区域点击注册 `mpvbridge://` 网页调用协议。该操作写入当前用户
-   配置，通常不需要管理员权限。
-6. 如需确认路径是否正确，可先用 MPVBridge 打开一个本地视频。能够出现 Profile
+5. 在 **系统集成**区域点击 **运行环境检测…**。窗口会分别检测 yt-dlp、FFmpeg
+   （含 ffprobe）和 Node.js，并显示版本以及“系统”或“便携”的来源。
+6. 系统已有受支持版本时无需安装。缺少某项时，点击该项自己的 **安装便携版**；
+   下载期间会在该项下方显示独立的平滑进度条，按钮会变为 **取消下载**。取消或
+   安装完成后，进度条会隐藏；下载超时也会显示具体提示。
+7. 点击 **重新检测**，确认所需环境均为可用。便携组件保存在 MPVBridge 同目录的
+   `Tools` 中，可以随整个文件夹复制到其他电脑，且不会修改系统 `PATH`。
+8. 返回 Profile 管理，在 **系统集成**区域点击注册 `mpvbridge://` 网页调用协议。
+   该操作写入当前用户配置，通常不需要管理员权限。
+9. 如需确认路径是否正确，可先用 MPVBridge 打开一个本地视频。能够出现 Profile
    选择窗口并正常启动 mpv，说明基础配置有效。
 
 如果默认 Profile 有效，外部调用会在倒计时结束后自动进入该 Profile。倒计时期间
@@ -209,7 +218,10 @@ MPVBridge。MPVBridge 使用临时 Cookie 文件启动 mpv/yt-dlp，并在正常
 
 #### mpv 已启动，但网络视频解析失败
 
-- 更新 mpv 使用的 yt-dlp 和 FFmpeg；YouTube 解析还应确认 Node.js 可用。
+- 打开 MPVBridge 的 **系统集成 > 运行环境检测…** 并点击 **重新检测**。缺少
+  yt-dlp、FFmpeg 或 Node.js 时，可直接点击对应的 **安装便携版**。
+- YouTube 解析需要 Node.js；确认检测窗口显示的是受支持版本，并让 MPVBridge 与
+  脚本保持最新。
 - 先测试无需登录的公开视频，再检查 Cookie 认证状态。
 - 如果浏览器能访问但 mpv 无法访问，可在脚本设置中填写与浏览器环境一致的代理。
 
@@ -228,6 +240,8 @@ MPVBridge。MPVBridge 使用临时 Cookie 文件启动 mpv/yt-dlp，并在正常
 ## 主要改动
 
 - 使用 MPVBridge 自有协议启动播放器并透传 mpv 参数。
+- 配合 MPVBridge v1.4.0 检测并便携安装 yt-dlp、FFmpeg 和 Node.js，YouTube 播放
+  显式启用 Node.js JavaScript runtime。
 - 支持 MPVBridge 播放状态反馈、yt-dlp 预检及 Cookie 传递流程。
 - 增加适用于 Bilibili、YouTube 等来源的认证状态管理。
 - 使用独立的脚本命名空间、配置键和页面元素标识，避免与原版配置互相覆盖。
