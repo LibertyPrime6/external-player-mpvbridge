@@ -13,7 +13,7 @@ MPV播放器推荐到[MPV整合包](https://github.com/yosh-wang/MPV-Resource-In
 3. 选择一个更新源安装油猴脚本：
    - [Greasy Fork 更新源](https://greasyfork.org/zh-CN/scripts/592362-external-player-for-mpvbridge)
      （推荐，后续从 Greasy Fork 自动更新）。
-   - [GitHub 更新源](https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/external-player-mpvbridge.github.user.js)
+   - [GitHub 更新源](https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/release/external-player-mpvbridge.github.user.js)
      （后续从 GitHub `main` 分支自动更新）。
 
 ## 第一次使用（详细步骤）
@@ -108,7 +108,7 @@ MPVBridge.exe "https://example.com/video"
 ### 4. 安装油猴脚本
 
 1. 选择 [Greasy Fork 更新源](https://greasyfork.org/zh-CN/scripts/592362-external-player-for-mpvbridge)
-   或 [GitHub 更新源](https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/external-player-mpvbridge.github.user.js)，
+   或 [GitHub 更新源](https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/release/external-player-mpvbridge.github.user.js)，
    并按上方“安装来源与自动更新”的说明打开对应链接。
 2. Tampermonkey 出现安装页面后，确认脚本名称为 **External Player for MPVBridge**，
    然后点击安装。

@@ -3,7 +3,7 @@
 // @name:zh-CN              外部播放器 · MPVBridge
 // @namespace               https://github.com/LibertyPrime6/external-player-mpvbridge
 // @copyright               2024, LuckyPuppy514; 2026, LibertyPrime6
-// @version                 1.5.7
+// @version                 1.5.8
 // @license                 MIT
 // @description             Play web video through MPVBridge and mpv
 // @description:zh-CN       通过 MPVBridge 和 mpv 播放网页视频
@@ -26,8 +26,8 @@
 // @grant                   GM.xmlHttpRequest
 // @grant                   unsafeWindow
 // @run-at                  document-start
-// @downloadURL             https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/external-player-mpvbridge.github.user.js
-// @updateURL               https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/external-player-mpvbridge.github.user.js
+// @downloadURL             https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/release/external-player-mpvbridge.github.user.js
+// @updateURL               https://raw.githubusercontent.com/LibertyPrime6/external-player-mpvbridge/main/release/external-player-mpvbridge.github.user.js
 // ==/UserScript==
 
 // Compatibility alias: migrates the legacy filename to the GitHub update source.
@@ -56,7 +56,7 @@ const MPV_BRIDGE_PLAY_EVENT = 'launchMpvBridge(media, config, player.name);';
 
 const defaultConfig = {
     global: {
-        version: '1.5.7',
+        version: '1.5.8',
         language: (navigator.language || navigator.userLanguage) === 'zh-CN' ? 'zh' : 'en',
         enableLogging: false,
         buttonXCoord: '0',
@@ -4091,11 +4091,26 @@ function escapeMpvEdlValue(value) {
     return `%${new TextEncoder().encode(text).length}%${text}`;
 }
 
-function buildMpvNamedTrackEdl(videoTracks, audioTracks) {
+function buildMpvNamedTrackEdl(videoTracks, audioTracks, bilibiliCid) {
+    const normalizedBilibiliCid = String(bilibiliCid ?? '').match(/^\d+$/)?.[0];
+    const addBilibiliDanmakuMarker = url => {
+        const text = String(url ?? '');
+        if (!normalizedBilibiliCid || !/^https?:\/\//i.test(text) ||
+            /(?:bilibili\.com|bilivideo\.c[nom]+)/i.test(text)) {
+            return text;
+        }
+        // uosc_danmaku only enters its Bilibili loader when MPV's path contains
+        // a recognized Bilibili host. Authenticated DASH can use other CDN hosts,
+        // so add a fragment-only marker: it remains visible in the EDL path but
+        // is never included in the HTTP request or its signed query string.
+        const separator = text.includes('#') ? '&' : '#';
+        return `${text}${separator}mpvbridge-bilibili.com/cid/${normalizedBilibiliCid}`;
+    };
     const normalizeTracks = tracks => (Array.isArray(tracks) ? tracks : [])
         .map(track => typeof track === 'string' ? { url: track, title: '' } : track)
         .filter(track => track?.url)
-        .filter((track, index, items) => items.findIndex(item => item.url === track.url) === index);
+        .filter((track, index, items) => items.findIndex(item => item.url === track.url) === index)
+        .map(track => ({ ...track, url: addBilibiliDanmakuMarker(track.url) }));
     const videos = normalizeTracks(videoTracks);
     const audios = normalizeTracks(audioTracks);
     if (!videos.length) {
@@ -4562,7 +4577,8 @@ function buildMpvNativePlaylistArguments(media) {
     const playlistStart = Math.min(entries.length - 1,
         Math.max(0, Math.floor(Number(media.playlistStart)) || 0));
     return entries.flatMap((entry, index) => {
-        const namedTrackEdl = buildMpvNamedTrackEdl(entry.videoTracks, entry.audioTracks);
+        const namedTrackEdl = buildMpvNamedTrackEdl(
+            entry.videoTracks, entry.audioTracks, entry.cid);
         const videoFiles = [...new Set(Array.isArray(entry.videos) ? entry.videos : [])]
             .filter(video => video && video !== entry.video);
         const audioFiles = [...new Set(
@@ -4591,7 +4607,8 @@ function buildMpvLaunchArguments(media, config, bridgeSession) {
     const requestsBilibiliDanmaku = Boolean(media?.bilibili?.cid) ||
         (Array.isArray(media?.playlistEntries) && media.playlistEntries.some(entry => entry?.cid));
     const playlistFiles = [...new Set(Array.isArray(media.playlist) ? media.playlist : [])].filter(Boolean);
-    const namedTrackEdl = buildMpvNamedTrackEdl(media.videoTracks, media.audioTracks);
+    const namedTrackEdl = buildMpvNamedTrackEdl(
+        media.videoTracks, media.audioTracks, media?.bilibili?.cid);
     const primaryVideo = namedTrackEdl || media.video || playlistFiles[0];
     const videoFiles = [...new Set(Array.isArray(media.videos) ? media.videos : [])]
         .filter(video => video && video !== media.video);
